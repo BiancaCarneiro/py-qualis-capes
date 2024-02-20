@@ -3,6 +3,7 @@ import pandas as pd
 from pandas import DataFrame
 from datetime import datetime
 from .download import _download_data
+import fnmatch
 
 
 class QualisCapes:
@@ -12,14 +13,29 @@ class QualisCapes:
         self.__load_data__()
 
     def __load_data__(self):
-        self.trien = pd.read_csv(
-            os.path.join(self._ROOT, "data/triênio.xls"),
-            encoding="ISO-8859-1",
-            sep="\t",
+        filenames = [file for file in os.listdir(os.path.join(self._ROOT, "data")) if fnmatch.fnmatch(file, '*.xls') or fnmatch.fnmatch(file, '*.xlsx')]
+        print(filenames)
+        self.datasets = dict(
+            (
+                filename.split(".")[0], 
+                pd.read_excel(
+                    os.path.join(self._ROOT, "data", filename),
+                    engine='openpyxl'
+                )
+            ) if filename.split(".")[0] == "xlsx"
+            else (
+                filename.split(".")[0],
+                pd.read_html(
+                    os.path.join(self._ROOT, "data", filename),
+                    encoding="ISO-8859-1",
+                    flavor="bs4"
+                )
+            )
+            for filename in filenames
         )
-        self.quadr = pd.read_excel(
-            os.path.join(self._ROOT, "data/quadriênio.xlsx")
-        )
+        
+        print(self.datasets)
+        exit()
         with open(os.path.join(self._ROOT, "data/last-update.txt"), "r") as text_file:
             self.last_update = text_file.read()
             text_file.close()
@@ -97,7 +113,8 @@ class QualisCapes:
         """Realiza download das tabelas de qualis-periódicos."""
         # realiza download dos dados
         _download_data("triênio")
-        _download_data("quadriênio")
+        _download_data("quadriênio 2013")
+        _download_data("quadriênio 2017")
 
         # obtém a data/hora atual
         now = datetime.now()

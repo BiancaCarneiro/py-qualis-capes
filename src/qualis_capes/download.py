@@ -4,6 +4,15 @@ import requests
 from tqdm import tqdm
 from bs4 import BeautifulSoup
 
+requests.packages.urllib3.disable_warnings()
+requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':HIGH:!DH:!aNULL'
+try:
+    requests.packages.urllib3.contrib.pyopenssl.util.ssl_.DEFAULT_CIPHERS += ':HIGH:!DH:!aNULL'
+except AttributeError:
+    # no pyopenssl support used / needed / available
+    pass
+
+
 _ROOT = os.path.abspath(os.path.dirname(__file__))
 _url = "https://sucupira.capes.gov.br/sucupira/public/consultas/coleta/veiculoPublicacaoQualis/listaConsultaGeralPeriodicos.xhtml"
 
@@ -22,14 +31,12 @@ def _get_event_option(html: str, name: str) -> str:
         return key
 
 
-def _download_data(keyword: str = "quadriênio") -> None:
-
-    if keyword.lower() not in ["quadriênio", "triênio"]:
+def _download_data(keyword: str = "triênio") -> None:
+    if not re.search(r"(?:quadriênio|triênio)(?:\s\d{4})?", keyword):
         return
 
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
-        "Accept-Encoding": "gzip, deflate, br",
     }
 
     # Definição dos campos do formulário
@@ -44,7 +51,7 @@ def _download_data(keyword: str = "quadriênio") -> None:
     with requests.session() as session:
 
         # realiza primeiro acesso a página para obter ViewState
-        init = session.get(_url)
+        init = session.get(_url, verify=False)
         soup = BeautifulSoup(init.text, "html.parser")
 
         # preenche os campos restantes do formulário de busca
@@ -55,7 +62,7 @@ def _download_data(keyword: str = "quadriênio") -> None:
 
         # realiza nova solicitação com os campos faltantes preenchidos
         response = session.post(_url, data=data)
-        page = BeautifulSoup(response.text, "lxml")
+        page = BeautifulSoup(response.text, "html.parser")
 
         # obtém informações sobre o campo de download do arquivo
         field_file = page.select_one("td > a")["onclick"]
@@ -64,7 +71,7 @@ def _download_data(keyword: str = "quadriênio") -> None:
         field_file = field_file.group()
         data[field_file] = field_file
 
-        #  realiza solicitação para fazer download do arquivo
+        # realiza solicitação para fazer download do arquivo
         response = session.post(_url, data=data, stream=True, headers=headers)
 
         # nome do arquivo
